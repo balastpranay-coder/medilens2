@@ -49,15 +49,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onCloseMob
     navigate('/login');
   };
 
-  const displayName = user?.full_name || 'Dr. Sarah Jenkins';
-  const displayRole = user?.role ? `${user.role} • Verified` : 'Clinician • Verified';
+  const displayName = user?.full_name || user?.email?.split('@')[0] || (user?.phone_number ? `Reviewer (${user.phone_number})` : 'Authorized Reviewer');
+  const displayRole = user?.role || 'Clinical Reviewer';
+  const photoUrl = user?.photo_url;
   const initials = displayName
     .split(' ')
     .filter(Boolean)
     .slice(0, 2)
     .map(n => n.replace(/[^a-zA-Z]/g, '').charAt(0))
     .join('')
-    .toUpperCase() || 'SJ';
+    .toUpperCase() || 'CR';
 
   return (
     <>
@@ -173,9 +174,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onCloseMob
           {/* User Account Info Card */}
           <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-[#1e293b] border border-slate-200/80 dark:border-slate-700 shadow-sm">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-teal-800 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                {initials}
-              </div>
+              {photoUrl ? (
+                <img 
+                  src={photoUrl} 
+                  alt={displayName} 
+                  className="w-8 h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0" 
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-teal-800 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  {initials}
+                </div>
+              )}
               <div className="min-w-0">
                 <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
                   {displayName}

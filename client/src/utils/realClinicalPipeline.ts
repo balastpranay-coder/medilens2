@@ -652,4 +652,74 @@ ${verifiedResults.map(r => `- **${r.test_name}:** ${r.verified_value || r.value}
       total_matches: matchedPatients.length + matchedReports.length + matchedTests.length
     };
   }
+
+  static deletePatientItem(patientId: number, itemId: number): void {
+    this.items = this.items.filter(i => !(i.patient_id === patientId && i.id === itemId));
+    setStored('items', this.items);
+  }
+
+  static updatePatientItem(patientId: number, itemId: number, data: Partial<PatientInfoItem>): PatientInfoItem | undefined {
+    const item = this.items.find(i => i.patient_id === patientId && i.id === itemId);
+    if (item) {
+      if (data.title) item.title = data.title;
+      if (data.description !== undefined) item.description = data.description;
+      if (data.category) item.category = data.category;
+      item.updated_at = new Date().toISOString();
+      setStored('items', this.items);
+    }
+    return item;
+  }
+
+  static getAllTimeline(): TimelineEvent[] {
+    return this.timeline;
+  }
+
+  static getReportQuality(reportId: number): QualityCheckData {
+    const report = this.getReport(reportId);
+    const results = this.getReportResults(reportId);
+    return {
+      report_id: reportId,
+      file_name: report?.file_name || 'report.pdf',
+      file_size_bytes: 2048,
+      file_size_formatted: '2.0 KB',
+      file_type: report?.file_type || 'application/pdf',
+      text_extraction_status: 'Successful',
+      ocr_required: true,
+      report_date_detected: Boolean(report?.report_date),
+      report_date: report?.report_date || new Date().toISOString().split('T')[0],
+      laboratory_detected: Boolean(report?.lab_name),
+      laboratory: report?.lab_name || 'Standard Laboratory',
+      patient_identifier_detected: Boolean(report?.patient_identifier),
+      patient_identifier: report?.patient_identifier || 'PT-RECORD',
+      total_tests_extracted: results.length,
+      reference_ranges_detected: results.filter(r => r.reference_range && r.reference_range !== 'Not provided').length,
+      warnings: []
+    };
+  }
+
+  static async uploadReport(data: {
+    patient_id: number;
+    report_title: string;
+    report_type: string;
+    report_date: string;
+    lab_name?: string;
+    file_name: string;
+    file_size_bytes: number;
+    file_type: string;
+    file?: File;
+  }): Promise<MedicalReport> {
+    const rawText = `Patient: PT-${data.patient_id}\nDate: ${data.report_date}\nLab: ${data.lab_name || 'Standard Diagnostic Lab'}\nHemoglobin: 13.4 g/dL (Reference: 12.0-16.0 g/dL)\nWBC: 6.8 x10^3/uL (Reference: 4.5-11.0 x10^3/uL)\nPlatelets: 245 x10^3/uL (Reference: 150-450 x10^3/uL)\nGlucose: 94 mg/dL (Reference: 70-99 mg/dL)\nCreatinine: 0.9 mg/dL (Reference: 0.6-1.2 mg/dL)`;
+    
+    const res = this.processUploadedReport({
+      patientId: data.patient_id,
+      title: data.report_title,
+      type: data.report_type,
+      date: data.report_date,
+      labName: data.lab_name,
+      fileName: data.file_name,
+      rawText
+    });
+    return res.report;
+  }
 }
+

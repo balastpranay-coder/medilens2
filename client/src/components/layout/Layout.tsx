@@ -14,8 +14,11 @@ export const Layout: React.FC = () => {
       <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-teal-700 border-t-transparent rounded-full animate-spin"></div>
-          <div className="text-xs font-medium text-slate-600 dark:text-slate-400">
-            Loading MedLens Clinical Workspace...
+          <div className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            MedLens
+          </div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+            Checking secure session…
           </div>
         </div>
       </div>

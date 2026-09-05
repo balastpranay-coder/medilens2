@@ -245,6 +245,33 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleMobileSidebar }) => {
             )}
           </div>
 
+          {/* Authenticated User Profile Menu */}
+          {user && (
+            <div className="relative pl-1 border-l border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                {user.photo_url ? (
+                  <img
+                    src={user.photo_url}
+                    alt={user.full_name}
+                    className="w-7 h-7 rounded-full object-cover border border-slate-200 dark:border-slate-700 shadow-2xs"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-teal-800 text-white flex items-center justify-center font-bold text-[11px] shadow-2xs">
+                    {(user.full_name || user.email || 'U').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="hidden md:block text-left text-xs leading-tight">
+                  <div className="font-bold text-slate-800 dark:text-slate-100 truncate max-w-[120px]">
+                    {user.full_name || user.email?.split('@')[0]}
+                  </div>
+                  <div className="text-[10px] text-slate-400 truncate max-w-[120px]">
+                    {user.email}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* + New Patient Primary Button */}
           <Link
             to="/patients/new"

@@ -1,8 +1,12 @@
 export interface User {
-  id: number;
+  id: number | string;
   email: string;
   full_name: string;
   role: string;
+  photo_url?: string | null;
+  phone_number?: string | null;
+  firebase_uid?: string;
+  auth_provider?: 'google' | 'phone' | 'password' | 'firebase';
   created_at?: string;
 }
 
