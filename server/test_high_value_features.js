@@ -57,27 +57,24 @@ async function runWorkflowAndVerify() {
 
   // Step 2: Patient Creation or Lookup
   console.log('\n[Step 2] Patient Record Setup...');
-  const listPat = await api('/api/patients', { token });
-  let patient = (listPat.data.patients && listPat.data.patients[0]) || null;
-
-  if (!patient) {
-    console.log('  → Creating real patient record...');
-    const createPat = await api('/api/patients', {
-      method: 'POST',
-      token,
-      json: {
-        patient_identifier: 'PT-2026-0001',
-        age: 52,
-        sex: 'Female',
-        date_of_birth: '1974-03-15'
-      }
-    });
-    if (!createPat.ok) {
-      console.error('Failed to create patient:', createPat.data);
-      process.exit(1);
+  const patIdentifier = `PT-HVF-${Date.now()}`;
+  console.log(`  → Creating real patient record: ${patIdentifier}...`);
+  const createPat = await api('/api/patients', {
+    method: 'POST',
+    token,
+    json: {
+      patient_identifier: patIdentifier,
+      age: 52,
+      sex: 'Female',
+      date_of_birth: '1974-03-15'
     }
-    patient = createPat.data.patient;
-    console.log(`  ✓ Patient created: ID #${patient.id}, Identifier: ${patient.patient_identifier}`);
+  });
+  if (!createPat.ok) {
+    console.error('Failed to create patient:', createPat.data);
+    process.exit(1);
+  }
+  let patient = createPat.data.patient;
+  console.log(`  ✓ Patient created: ID #${patient.id}, Identifier: ${patient.patient_identifier}`);
 
     // Add Patient Information Items (Symptoms, Conditions)
     console.log('  → Documenting patient intake (User Provided)...');
@@ -100,13 +97,10 @@ async function runWorkflowAndVerify() {
       }
     });
     console.log('  ✓ Patient intake items recorded.');
-  } else {
-    console.log(`  ✓ Using existing patient record: ID #${patient.id} (${patient.patient_identifier})`);
-  }
 
   // Step 3: Ensure 2 Real Reports are Uploaded and Processed for this Patient
   console.log('\n[Step 3] Medical Report Ingestion & Extraction...');
-  const patReports = await api(`/api/patients/${patient.id}/reports`, { token });
+  const patReports = await api(`/api/reports?patient_id=${patient.id}`, { token });
   let reports = patReports.data.reports || [];
 
   const pdfFiles = [
@@ -119,7 +113,7 @@ async function runWorkflowAndVerify() {
     {
       file: 'test_followup_report.pdf',
       title: 'Follow-Up Metabolic Evaluation',
-      date: '2026-09-02',
+      date: '2026-08-25',
       lab: 'Quest Diagnostics'
     }
   ];
@@ -154,7 +148,7 @@ async function runWorkflowAndVerify() {
   }
 
   // Refresh reports unconditionally
-  const repList = await api(`/api/patients/${patient.id}/reports`, { token });
+  const repList = await api(`/api/reports?patient_id=${patient.id}`, { token });
   reports = repList.data.reports || [];
   console.log(`  ✓ Total reports available for testing: ${reports.length}`);
 

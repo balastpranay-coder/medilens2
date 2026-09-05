@@ -58,45 +58,92 @@ function parseLabTextDeterministically(text) {
   const results = [];
   const lines = text.split(/\r?\n/);
 
-  // Common clinical lab patterns:
-  // e.g.: "Hemoglobin: 13.2 g/dL (Reference Range: 12.0–16.0 g/dL)"
-  // e.g.: "Glucose: 118 mg/dL [Reference: 70-100 mg/dL]"
-  // e.g.: "Platelet Count: 230 K/uL (Reference Range: 150-450 K/uL)"
-  // e.g.: "eGFR: >60 mL/min (Reference Range: Not provided)"
-  // e.g.: "Sodium  138  mEq/L  135-145"
-  const regexPattern = /(?:^|[\r\n])\s*[-•*]?\s*([A-Za-z0-9\s/()]+?)\s*[:\t]\s*([><=]?\s*[0-9]+(?:\.[0-9]+)?)\s*([A-Za-z/%]+)?\s*(?:[([][A-Za-z\s]*:?\s*([^\])]*)[\])]|\s+([0-9]+(?:\.[0-9]+)?\s*[-–—to]\s*[0-9]+(?:\.[0-9]+)?))?/g;
+  for (const line of lines) {
+    const trimmed = line.trim().replace(/^[-•*]\s*/, '');
+    if (!trimmed || trimmed.length < 3) continue;
 
-  let match;
-  while ((match = regexPattern.exec(text)) !== null) {
-    const rawTestName = match[1]?.trim();
-    const rawValue = match[2]?.trim();
-    const rawUnit = match[3]?.trim() || null;
-    let rawRange = match[4]?.trim() || match[5]?.trim() || null;
-
-    if (!rawTestName || !rawValue) continue;
-    // Filter out metadata and non-test headers
-    const lowerName = rawTestName.toLowerCase();
+    // Filter out common non-test header lines
+    const lowerLine = trimmed.toLowerCase();
     if ([
-      'patient id', 'patient identifier', 'date', 'report date', 'collection date', 
-      'technique', 'findings', 'conclusion', 'age', 'sex', 'dob', 'status',
-      'specimen', 'physician', 'doctor', 'lab name', 'phone', 'address'
-    ].some(header => lowerName.includes(header))) {
+      'laboratory report', 'diagnostic clinic', 'patient:', 'collection date',
+      'test name', 'technique', 'findings', 'conclusion', 'specimen'
+    ].some(h => lowerLine.includes(h) && !lowerLine.includes('g/dl') && !lowerLine.includes('mg/dl') && !lowerLine.includes('u/l') && !lowerLine.includes('ng/ml'))) {
       continue;
     }
 
-    const snippet = match[0].trim().replace(/^[-•*]\s*/, '');
-    const evalResult = evaluateReferenceRange(rawValue, rawRange);
+    let rawTestName = null;
+    let rawValue = null;
+    let rawUnit = null;
+    let rawRange = null;
 
-    results.push({
-      test_name: rawTestName,
-      value: rawValue,
-      unit: rawUnit,
-      reference_range: evalResult.reference_range,
-      status: evalResult.status,
-      observation: null,
-      confidence_score: 92,
-      source_snippet: snippet
-    });
+    // Format 1: Colon delimited: "Test: 13.4 g/dL (Range: 12.0-16.0 g/dL)"
+    if (trimmed.includes(':')) {
+      const colonIdx = trimmed.indexOf(':');
+      const left = trimmed.slice(0, colonIdx).trim();
+      const right = trimmed.slice(colonIdx + 1).trim();
+
+      const valMatch = right.match(/^([><=]?\s*[0-9]+(?:\.[0-9]+)?)\s*([A-Za-z/%\^0-9]+)?/);
+      if (valMatch) {
+        rawTestName = left;
+        rawValue = valMatch[1]?.trim();
+        rawUnit = valMatch[2]?.trim() || null;
+
+        const rest = right.slice(valMatch[0].length).trim();
+        const rangeInParens = rest.match(/[([][^\])]*?([0-9]+(?:\.[0-9]+)?\s*[-–—to]\s*[0-9]+(?:\.[0-9]+)?|[><=]\s*[0-9]+(?:\.[0-9]+)?)[^\])]*[\])]/);
+        if (rangeInParens) {
+          rawRange = rangeInParens[1];
+        } else {
+          const directRange = rest.match(/([0-9]+(?:\.[0-9]+)?\s*[-–—to]\s*[0-9]+(?:\.[0-9]+)?|[><=]\s*[0-9]+(?:\.[0-9]+)?)/);
+          if (directRange) rawRange = directRange[1];
+        }
+      }
+    }
+
+    // Format 2: Tabular whitespace separated: "Hemoglobin 13.4 g/dL 12.0–16.0 g/dL" or "ALT 68 U/L < 45 U/L"
+    if (!rawTestName) {
+      const numMatch = trimmed.match(/(?:^|\s+)([><=]?\s*[0-9]+(?:\.[0-9]+)?)(?:\s+([A-Za-z/%\^0-9]+))?(.*)$/);
+      if (numMatch) {
+        const testNameCandidate = trimmed.slice(0, trimmed.indexOf(numMatch[0])).trim();
+        if (testNameCandidate && testNameCandidate.length >= 2) {
+          rawTestName = testNameCandidate;
+          rawValue = numMatch[1]?.trim();
+          rawUnit = numMatch[2]?.trim() || null;
+
+          const rest = (numMatch[3] || '').trim();
+          const rangeInParens = rest.match(/[([][^\])]*?([0-9]+(?:\.[0-9]+)?\s*[-–—to]\s*[0-9]+(?:\.[0-9]+)?|[><=]\s*[0-9]+(?:\.[0-9]+)?)[^\])]*[\])]/);
+          if (rangeInParens) {
+            rawRange = rangeInParens[1];
+          } else {
+            const directRange = rest.match(/([0-9]+(?:\.[0-9]+)?\s*[-–—to]\s*[0-9]+(?:\.[0-9]+)?|[><=]\s*[0-9]+(?:\.[0-9]+)?)/);
+            if (directRange) rawRange = directRange[1];
+          }
+        }
+      }
+    }
+
+    if (rawTestName && rawValue) {
+      const lowerName = rawTestName.toLowerCase();
+      if ([
+        'patient id', 'patient identifier', 'date', 'report date', 'collection date', 
+        'technique', 'findings', 'conclusion', 'age', 'sex', 'dob', 'status',
+        'specimen', 'physician', 'doctor', 'lab name', 'phone', 'address', 'test name'
+      ].some(header => lowerName === header || lowerName.startsWith(header + ':'))) {
+        continue;
+      }
+
+      const evalResult = evaluateReferenceRange(rawValue, rawRange);
+
+      results.push({
+        test_name: rawTestName,
+        value: rawValue,
+        unit: rawUnit,
+        reference_range: evalResult.reference_range,
+        status: evalResult.status,
+        observation: null,
+        confidence_score: 92,
+        source_snippet: trimmed
+      });
+    }
   }
 
   return results;

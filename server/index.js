@@ -86,7 +86,7 @@ try {
   console.error('[MedLens] User initialization error:', err);
 }
 
-// Authorization check helper
+// Authorization check helpers
 function verifyReportAccess(req, res, reportId) {
   const report = db.prepare(`
     SELECT r.*, p.created_by as patient_created_by, p.patient_identifier
@@ -107,6 +107,45 @@ function verifyReportAccess(req, res, reportId) {
   }
 
   return report;
+}
+
+function verifyPatientAccess(req, res, patientId) {
+  const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
+
+  if (!patient) {
+    res.status(404).json({ error: 'Patient not found.' });
+    return null;
+  }
+
+  // Check authorization: creator of patient or admin
+  if (patient.created_by && patient.created_by !== req.user.id && req.user.role !== 'Admin') {
+    res.status(403).json({ error: 'Unauthorized access to this patient record.' });
+    return null;
+  }
+
+  return patient;
+}
+
+function verifyResultAccess(req, res, resultId) {
+  const result = db.prepare(`
+    SELECT er.*, r.patient_id, p.created_by as patient_created_by
+    FROM extracted_results er
+    JOIN medical_reports r ON er.report_id = r.id
+    JOIN patients p ON r.patient_id = p.id
+    WHERE er.id = ?
+  `).get(resultId);
+
+  if (!result) {
+    res.status(404).json({ error: 'Extracted result not found.' });
+    return null;
+  }
+
+  if (result.patient_created_by && result.patient_created_by !== req.user.id && req.user.role !== 'Admin') {
+    res.status(403).json({ error: 'Unauthorized access to this patient medical result.' });
+    return null;
+  }
+
+  return result;
 }
 
 // ----------------------------------------------------
@@ -479,14 +518,12 @@ app.get('/api/patients/:id', requireAuth, (req, res) => {
 
 app.put('/api/patients/:id', requireAuth, (req, res) => {
   const patientId = parseInt(req.params.id, 10);
+  const existing = verifyPatientAccess(req, res, patientId);
+  if (!existing) return;
+
   const { patient_identifier, age, date_of_birth, sex, status } = req.body;
 
   try {
-    const existing = db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
-    if (!existing) {
-      return res.status(404).json({ error: 'Patient not found.' });
-    }
-
     if (patient_identifier && patient_identifier.trim() !== existing.patient_identifier) {
       const duplicate = db.prepare('SELECT id FROM patients WHERE patient_identifier = ? AND id != ?').get(patient_identifier.trim(), patientId);
       if (duplicate) {
@@ -526,12 +563,10 @@ app.put('/api/patients/:id', requireAuth, (req, res) => {
 
 app.delete('/api/patients/:id', requireAuth, (req, res) => {
   const patientId = parseInt(req.params.id, 10);
-  try {
-    const patient = db.prepare('SELECT * FROM patients WHERE id = ?').get(patientId);
-    if (!patient) {
-      return res.status(404).json({ error: 'Patient not found.' });
-    }
+  const patient = verifyPatientAccess(req, res, patientId);
+  if (!patient) return;
 
+  try {
     db.prepare('DELETE FROM patients WHERE id = ?').run(patientId);
     res.json({ message: `Patient ${patient.patient_identifier} deleted successfully.` });
   } catch (err) {
@@ -545,6 +580,9 @@ app.delete('/api/patients/:id', requireAuth, (req, res) => {
 // ----------------------------------------------------
 app.post('/api/patients/:id/items', requireAuth, (req, res) => {
   const patientId = parseInt(req.params.id, 10);
+  const patient = verifyPatientAccess(req, res, patientId);
+  if (!patient) return;
+
   const { category, title, description, details } = req.body;
 
   const validCategories = ['symptom', 'condition', 'allergy', 'medication', 'medical_history', 'note'];
@@ -557,11 +595,6 @@ app.post('/api/patients/:id/items', requireAuth, (req, res) => {
   }
 
   try {
-    const patient = db.prepare('SELECT id FROM patients WHERE id = ?').get(patientId);
-    if (!patient) {
-      return res.status(404).json({ error: 'Patient not found.' });
-    }
-
     const detailsStr = details ? (typeof details === 'string' ? details : JSON.stringify(details)) : null;
 
     const insertStmt = db.prepare(`
@@ -607,6 +640,9 @@ app.post('/api/patients/:id/items', requireAuth, (req, res) => {
 
 app.put('/api/patients/:id/items/:itemId', requireAuth, (req, res) => {
   const patientId = parseInt(req.params.id, 10);
+  const patient = verifyPatientAccess(req, res, patientId);
+  if (!patient) return;
+
   const itemId = parseInt(req.params.itemId, 10);
   const { title, description, details } = req.body;
 
@@ -654,6 +690,9 @@ app.put('/api/patients/:id/items/:itemId', requireAuth, (req, res) => {
 
 app.delete('/api/patients/:id/items/:itemId', requireAuth, (req, res) => {
   const patientId = parseInt(req.params.id, 10);
+  const patient = verifyPatientAccess(req, res, patientId);
+  if (!patient) return;
+
   const itemId = parseInt(req.params.itemId, 10);
 
   try {
@@ -699,6 +738,11 @@ app.get(['/api/reports', '/reports'], allowBrowserNavOrAuth, (req, res) => {
     `;
     const params = [];
 
+    if (req.user && req.user.role !== 'Admin') {
+      query += ` AND (p.created_by = ? OR p.created_by IS NULL)`;
+      params.push(req.user.id);
+    }
+
     if (status && status !== 'all') {
       query += ` AND (r.status = ? OR r.processing_status = ? OR r.verification_status = ?)`;
       params.push(status, status, status);
@@ -742,10 +786,9 @@ app.post(['/api/reports', '/reports'], requireAuth, (req, res) => {
       return res.status(400).json({ error: 'Patient ID is required.' });
     }
 
-    const patient = db.prepare('SELECT id, patient_identifier, created_by FROM patients WHERE id = ?').get(parseInt(patient_id, 10));
-    if (!patient) {
-      return res.status(404).json({ error: 'Selected patient does not exist.' });
-    }
+    const patient = verifyPatientAccess(req, res, parseInt(patient_id, 10));
+    if (!patient) return;
+
 
     const file = req.file;
     const resolvedTitle = (report_title && report_title.trim()) || (file ? file.originalname : 'Clinical Report');
@@ -806,10 +849,10 @@ app.post(['/api/reports', '/reports'], requireAuth, (req, res) => {
 });
 
 // Compare Reports Endpoint
-app.get(['/api/reports/compare', '/api/patients/:id/comparison'], requireAuth, (req, res) => {
+app.get(['/api/reports/compare', '/api/patients/:id/comparison', '/api/patients/:id/compare'], requireAuth, (req, res) => {
   const patientId = req.params.id ? parseInt(req.params.id, 10) : null;
-  const reportA = req.query.report_a || req.query.report_a_id;
-  const reportB = req.query.report_b || req.query.report_b_id;
+  const reportA = req.query.report_a || req.query.report_a_id || req.query.baseReportId;
+  const reportB = req.query.report_b || req.query.report_b_id || req.query.targetReportId;
 
   if (!reportA || !reportB) {
     return res.status(400).json({ error: 'report_a and report_b parameters are required for comparison.' });
@@ -979,6 +1022,9 @@ app.get('/api/verification/queue', requireAuth, (req, res) => {
 
 app.post('/api/verification/:resultId', requireAuth, (req, res) => {
   const resultId = parseInt(req.params.resultId, 10);
+  const resultAccess = verifyResultAccess(req, res, resultId);
+  if (!resultAccess) return;
+
   const { action, corrected_value } = req.body;
 
   try {
@@ -1002,6 +1048,9 @@ app.post('/api/verification/:resultId', requireAuth, (req, res) => {
 
 app.get('/api/verification/history/:resultId', requireAuth, (req, res) => {
   const resultId = parseInt(req.params.resultId, 10);
+  const resultAccess = verifyResultAccess(req, res, resultId);
+  if (!resultAccess) return;
+
   try {
     const history = getVerificationHistory(resultId);
     res.json({ history });
@@ -1016,6 +1065,9 @@ app.get('/api/verification/history/:resultId', requireAuth, (req, res) => {
 // ----------------------------------------------------
 app.get('/api/patients/:id/conflicts', requireAuth, (req, res) => {
   const patientId = parseInt(req.params.id, 10);
+  const patient = verifyPatientAccess(req, res, patientId);
+  if (!patient) return;
+
   try {
     detectPatientConflicts(patientId);
     const conflicts = getPatientConflicts(patientId);
@@ -1028,6 +1080,9 @@ app.get('/api/patients/:id/conflicts', requireAuth, (req, res) => {
 
 app.post(['/api/patients/:id/conflicts/detect', '/api/patients/:id/conflicts'], requireAuth, (req, res) => {
   const patientId = parseInt(req.params.id, 10);
+  const patient = verifyPatientAccess(req, res, patientId);
+  if (!patient) return;
+
   try {
     const newConflicts = detectPatientConflicts(patientId);
     const conflicts = getPatientConflicts(patientId);
@@ -1043,6 +1098,21 @@ app.post('/api/conflicts/:id/resolve', requireAuth, (req, res) => {
   const { resolution_note } = req.body;
 
   try {
+    const conflict = db.prepare(`
+      SELECT c.*, p.created_by as patient_created_by
+      FROM conflicts c
+      JOIN patients p ON c.patient_id = p.id
+      WHERE c.id = ?
+    `).get(conflictId);
+
+    if (!conflict) {
+      return res.status(404).json({ error: 'Conflict not found.' });
+    }
+
+    if (conflict.patient_created_by && conflict.patient_created_by !== req.user.id && req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Unauthorized access to this patient conflict record.' });
+    }
+
     const resolved = resolveConflict({
       conflictId,
       userId: req.user.id,
@@ -1060,6 +1130,9 @@ app.post('/api/conflicts/:id/resolve', requireAuth, (req, res) => {
 // ----------------------------------------------------
 app.post('/api/patients/:id/summary/generate', requireAuth, async (req, res) => {
   const patientId = parseInt(req.params.id, 10);
+  const patient = verifyPatientAccess(req, res, patientId);
+  if (!patient) return;
+
   try {
     const summary = await generatePatientSummary({
       patientId,
@@ -1077,6 +1150,9 @@ app.post('/api/patients/:id/summary/generate', requireAuth, async (req, res) => 
 
 app.get('/api/patients/:id/summaries', requireAuth, (req, res) => {
   const patientId = parseInt(req.params.id, 10);
+  const patient = verifyPatientAccess(req, res, patientId);
+  if (!patient) return;
+
   try {
     const summaries = getPatientSummaries(patientId);
     res.json({ summaries });
@@ -1085,6 +1161,7 @@ app.get('/api/patients/:id/summaries', requireAuth, (req, res) => {
     res.status(500).json({ error: 'Error retrieving patient summaries.' });
   }
 });
+
 
 app.patch('/api/reports/:id/status', requireAuth, (req, res) => {
   const reportId = parseInt(req.params.id, 10);
@@ -1253,6 +1330,9 @@ app.get('/api/patients/:id/trends', requireAuth, (req, res) => {
   const patientId = parseInt(req.params.id, 10);
   if (!patientId) return res.status(400).json({ error: 'Valid patient ID required' });
 
+  const patient = verifyPatientAccess(req, res, patientId);
+  if (!patient) return;
+
   try {
     // Get all results across reports for this patient
     const results = db.prepare(`
@@ -1302,7 +1382,7 @@ app.get('/api/patients/:id/trends', requireAuth, (req, res) => {
     }
 
     const tests = Array.from(testMap.values());
-    res.json({ patient_id: patientId, tests });
+    res.json({ patient_id: patientId, tests, trends: tests, total_tests: tests.length });
   } catch (err) {
     console.error('Trends error:', err);
     res.status(500).json({ error: 'Failed to retrieve patient trends.' });
@@ -1316,16 +1396,10 @@ app.get('/api/reports/:id/quality', requireAuth, (req, res) => {
   const reportId = parseInt(req.params.id, 10);
   if (!reportId) return res.status(400).json({ error: 'Valid report ID required' });
 
+  const report = verifyReportAccess(req, res, reportId);
+  if (!report) return;
+
   try {
-    const report = db.prepare(`
-      SELECT r.*, p.patient_identifier
-      FROM medical_reports r
-      JOIN patients p ON r.patient_id = p.id
-      WHERE r.id = ?
-    `).get(reportId);
-
-    if (!report) return res.status(404).json({ error: 'Report not found' });
-
     const results = db.prepare('SELECT * FROM extracted_results WHERE report_id = ?').all(reportId);
 
     let actualFileSize = report.file_size || 0;
@@ -1383,6 +1457,9 @@ app.get('/api/extracted-results/:id/evidence', requireAuth, (req, res) => {
   const resultId = parseInt(req.params.id, 10);
   if (!resultId) return res.status(400).json({ error: 'Valid result ID required' });
 
+  const resultAccess = verifyResultAccess(req, res, resultId);
+  if (!resultAccess) return;
+
   try {
     const item = db.prepare(`
       SELECT er.*, r.report_title, r.report_type, r.report_date, r.lab_name, r.file_name, r.file_type, r.file_size, r.ocr_used,
@@ -1396,6 +1473,7 @@ app.get('/api/extracted-results/:id/evidence', requireAuth, (req, res) => {
     `).get(resultId);
 
     if (!item) return res.status(404).json({ error: 'Extracted result not found' });
+
 
     const pipelineSteps = [
       {
