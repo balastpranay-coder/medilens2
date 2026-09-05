@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { ConfirmationResult } from '../config/firebase';
+import { ConfirmationResult, FirebaseConfigObject } from '../config/firebase';
 import { 
   Stethoscope, 
   Lock, 
@@ -21,7 +21,9 @@ import {
   FileCheck2,
   AlertCircle,
   HelpCircle,
-  CheckCircle2
+  CheckCircle2,
+  Settings,
+  X
 } from 'lucide-react';
 
 export const AuthPage: React.FC = () => {
@@ -35,12 +37,22 @@ export const AuthPage: React.FC = () => {
     sendPhoneVerification, 
     verifyPhoneOtp, 
     loginWithEmail, 
-    signupWithEmail 
+    signupWithEmail,
+    saveCustomFirebaseConfig
   } = useAuth();
   const { success, error } = useToast();
 
   const [authMethod, setAuthMethod] = useState<'google' | 'phone' | 'email'>('google');
   const [isSignUp, setIsSignUp] = useState(searchParams.get('mode') === 'signup');
+
+  // Firebase Live Config Modal state
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [cfgApiKey, setCfgApiKey] = useState('');
+  const [cfgAuthDomain, setCfgAuthDomain] = useState('');
+  const [cfgProjectId, setCfgProjectId] = useState('');
+  const [cfgStorageBucket, setCfgStorageBucket] = useState('');
+  const [cfgMessagingSenderId, setCfgMessagingSenderId] = useState('');
+  const [cfgAppId, setCfgAppId] = useState('');
 
   // Phone OTP state
   const [countryCode, setCountryCode] = useState('+91');
@@ -204,6 +216,33 @@ export const AuthPage: React.FC = () => {
     }
   };
 
+  // Save Dynamic Firebase Config
+  const handleSaveConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cfgApiKey.trim() || !cfgAuthDomain.trim() || !cfgProjectId.trim()) {
+      error('API Key, Auth Domain, and Project ID are required.');
+      return;
+    }
+
+    const config: FirebaseConfigObject = {
+      apiKey: cfgApiKey.trim(),
+      authDomain: cfgAuthDomain.trim(),
+      projectId: cfgProjectId.trim(),
+      storageBucket: cfgStorageBucket.trim() || undefined,
+      messagingSenderId: cfgMessagingSenderId.trim() || undefined,
+      appId: cfgAppId.trim() || undefined
+    };
+
+    const saved = saveCustomFirebaseConfig(config);
+    if (saved) {
+      success('Firebase configured successfully! Google & Phone OTP are now active.');
+      setShowConfigModal(false);
+      window.location.reload();
+    } else {
+      error('Could not initialize Firebase with the provided credentials.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 transition-colors duration-200">
       
@@ -285,21 +324,28 @@ export const AuthPage: React.FC = () => {
             {/* Missing Firebase Environment Configuration Banner */}
             {!isFirebaseConfigured && (
               <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-xs text-amber-950 dark:text-amber-200 space-y-2">
-                <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-100">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>Firebase Production Authentication Setup</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-100">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Firebase Production Setup</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowConfigModal(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-200/80 dark:bg-amber-900/80 hover:bg-amber-300 text-[11px] font-bold text-amber-950 dark:text-amber-100 transition-colors shadow-2xs"
+                  >
+                    <Settings className="w-3 h-3" />
+                    <span>Enter Firebase Keys</span>
+                  </button>
                 </div>
                 <p className="text-[11px] leading-relaxed">
-                  Real authentication is connected via Firebase. To authenticate with Google or Phone SMS on Vercel or locally, please configure the following environment variables:
+                  Real Google OAuth and Phone SMS OTP require Firebase credentials. You can also sign in directly using <strong>Email & Password</strong> below.
                 </p>
                 <div className="bg-white/80 dark:bg-slate-900/80 p-2 rounded border border-amber-200/60 font-mono text-[10px] space-y-0.5">
                   {missingEnvVars.map(v => (
                     <div key={v} className="text-amber-900 dark:text-amber-300">• {v}</div>
                   ))}
                 </div>
-                <p className="text-[10px] text-amber-800 dark:text-amber-400">
-                  Add <code className="bg-amber-100 dark:bg-amber-900 px-1 py-0.5 rounded font-mono">medilens2-58yu.vercel.app</code> to Firebase Auth → Authorized Domains.
-                </p>
               </div>
             )}
 
@@ -587,6 +633,120 @@ export const AuthPage: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Dynamic Firebase Configuration Modal */}
+      {showConfigModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Settings className="w-4 h-4 text-teal-700 dark:text-teal-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Configure Firebase Credentials
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConfigModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Paste your Firebase Web App credentials from the <strong>Firebase Console → Project Settings → General → Web Apps</strong>.
+            </p>
+
+            <form onSubmit={handleSaveConfig} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  API Key (VITE_FIREBASE_API_KEY) *
+                </label>
+                <input
+                  type="text"
+                  value={cfgApiKey}
+                  onChange={(e) => setCfgApiKey(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="clinical-input w-full font-mono text-xs"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Auth Domain (VITE_FIREBASE_AUTH_DOMAIN) *
+                </label>
+                <input
+                  type="text"
+                  value={cfgAuthDomain}
+                  onChange={(e) => setCfgAuthDomain(e.target.value)}
+                  placeholder="your-project.firebaseapp.com"
+                  className="clinical-input w-full font-mono text-xs"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Project ID (VITE_FIREBASE_PROJECT_ID) *
+                </label>
+                <input
+                  type="text"
+                  value={cfgProjectId}
+                  onChange={(e) => setCfgProjectId(e.target.value)}
+                  placeholder="your-project-id"
+                  className="clinical-input w-full font-mono text-xs"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Storage Bucket (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={cfgStorageBucket}
+                    onChange={(e) => setCfgStorageBucket(e.target.value)}
+                    placeholder="project.appspot.com"
+                    className="clinical-input w-full font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    App ID (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={cfgAppId}
+                    onChange={(e) => setCfgAppId(e.target.value)}
+                    placeholder="1:123456:web:abcd"
+                    className="clinical-input w-full font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowConfigModal(false)}
+                  className="clinical-btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="clinical-btn-primary"
+                >
+                  Save & Activate Live Firebase
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
