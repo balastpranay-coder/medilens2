@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { MedicalReport, ExtractedResult, VerificationRecord } from '../types';
+import { ExtractedResult } from '../types';
 import { 
   Check, 
   Edit2, 
@@ -12,77 +12,73 @@ import {
   ExternalLink,
   History,
   X,
-  AlertCircle
+  AlertCircle,
+  ShieldAlert,
+  FileCheck2,
+  Clock
 } from 'lucide-react';
-
-interface ReportWithResults extends MedicalReport {
-  results: ExtractedResult[];
-}
+import { LoadingState } from '../components/common/LoadingState';
+import { EmptyState } from '../components/common/EmptyState';
+import { EvidenceViewerModal } from '../components/clinical/EvidenceViewerModal';
 
 export const VerificationPage: React.FC = () => {
   const { authFetch } = useAuth();
   const { success, error } = useToast();
+  const navigate = useNavigate();
 
-  const [queue, setQueue] = useState<ReportWithResults[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [filterPatient, setFilterPatient] = useState<string>('all');
+  const [results, setResults] = useState<ExtractedResult[]>([]);
   const [filterAction, setFilterAction] = useState<string>('pending');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Edit value modal
   const [editingResult, setEditingResult] = useState<ExtractedResult | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // History modal
-  const [historyResult, setHistoryResult] = useState<ExtractedResult | null>(null);
-  const [historyRecords, setHistoryRecords] = useState<VerificationRecord[]>([]);
-  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  // Evidence modal
+  const [evidenceResultId, setEvidenceResultId] = useState<number | null>(null);
 
-  const fetchQueue = async () => {
+  const fetchResults = async () => {
     setIsLoading(true);
     try {
-      const res = await authFetch('/api/verification/queue');
+      const res = await authFetch('/api/verification/pending');
       if (res.ok) {
         const json = await res.json();
-        setQueue(json.queue || []);
-      } else {
-        error('Failed to load verification queue.');
+        setResults(json.pending_results || []);
       }
     } catch (err) {
-      error('Network communication error.');
+      error('Failed to load verification queue.');
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchQueue();
+    fetchResults();
   }, []);
 
   const handleAction = async (resultId: number, action: 'accepted' | 'edited' | 'rejected' | 'marked_uncertain', correctedValue?: string) => {
     setIsSubmitting(true);
     try {
-      const res = await authFetch(`/api/verification/${resultId}`, {
+      const res = await authFetch('/api/verification/verify-result', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, corrected_value: correctedValue })
+        body: JSON.stringify({ 
+          result_id: resultId, 
+          action, 
+          custom_value: correctedValue 
+        })
       });
 
       if (res.ok) {
-        const actionLabels = {
-          accepted: 'Result accepted.',
-          edited: 'Result corrected and verified.',
-          rejected: 'Result rejected.',
-          marked_uncertain: 'Marked uncertain.'
-        };
-        success(actionLabels[action] || 'Action recorded.');
+        success(`Result ${action === 'accepted' ? 'accepted and verified' : action}.`);
         if (editingResult) {
           setEditingResult(null);
           setEditValue('');
         }
-        fetchQueue();
+        fetchResults();
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         error(data.error || 'Failed to submit verification action.');
       }
     } catch (err) {
@@ -92,42 +88,7 @@ export const VerificationPage: React.FC = () => {
     }
   };
 
-  const openHistory = async (result: ExtractedResult) => {
-    setHistoryResult(result);
-    setIsHistoryLoading(true);
-    try {
-      const res = await authFetch(`/api/verification/history/${result.id}`);
-      if (res.ok) {
-        const json = await res.json();
-        setHistoryRecords(json.history || []);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  };
-
-  const uniquePatients = Array.from(new Set(queue.map(r => r.patient_identifier).filter(Boolean)));
-
-  // Flatten tests for review queue table
-  const allQueueItems = queue.flatMap(rep => 
-    rep.results.map(r => ({
-      ...r,
-      report_title: rep.report_title,
-      report_date: rep.report_date,
-      patient_id: rep.patient_id,
-      patient_identifier: rep.patient_identifier,
-      file_name: rep.file_name
-    }))
-  ).filter(item => {
-    if (filterPatient !== 'all' && item.patient_identifier !== filterPatient) return false;
-    if (filterAction === 'pending') return !item.verification_action || item.verification_action === 'pending';
-    if (filterAction === 'all') return true;
-    return item.verification_action === filterAction;
-  });
-
-  const renderStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string) => {
     const s = (status || 'unknown').toLowerCase();
     switch (s) {
       case 'normal':
@@ -142,155 +103,136 @@ export const VerificationPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       
-      {/* Header per Section 10 */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1 border-b border-slate-200/80 dark:border-slate-800">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Verification Queue</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Review extracted information before it becomes part of the verified patient record.
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+            Verification Queue
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Review extracted laboratory values before they become authoritative clinical records
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <select
-            value={filterPatient}
-            onChange={(e) => setFilterPatient(e.target.value)}
-            className="clinical-input py-1.5 text-xs"
+          <button
+            onClick={() => fetchResults()}
+            className="clinical-btn-secondary"
           >
-            <option value="all">All Patients</option>
-            {uniquePatients.map(p => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </select>
-
-          <select
-            value={filterAction}
-            onChange={(e) => setFilterAction(e.target.value)}
-            className="clinical-input py-1.5 text-xs"
-          >
-            <option value="pending">Awaiting Review</option>
-            <option value="all">All Items</option>
-            <option value="accepted">Accepted</option>
-            <option value="edited">Edited</option>
-            <option value="marked_uncertain">Uncertain</option>
-            <option value="rejected">Rejected</option>
-          </select>
+            Refresh Queue
+          </button>
         </div>
       </div>
 
-      {/* Verification Queue Table per Section 10 */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      {/* Safety Notice Banner */}
+      <div className="p-2.5 rounded-md bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/80 dark:border-teal-900/60 text-xs text-teal-950 dark:text-teal-200 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-teal-800 dark:text-teal-400 shrink-0" />
+          <span>
+            <strong>Human Supervision Required:</strong> AI-extracted values are non-authoritative until verified and accepted by a human reviewer.
+          </span>
+        </div>
+        <span className="text-[10px] uppercase font-bold text-teal-800 dark:text-teal-300 bg-teal-100 dark:bg-teal-900 px-1.5 py-0.5 rounded shrink-0">
+          Supervised Intake
+        </span>
+      </div>
+
+      {/* Verification Queue Table */}
+      <div className="clinical-card overflow-hidden">
         {isLoading ? (
-          <div className="p-10 text-center text-xs text-slate-500">
-            <div className="w-6 h-6 border-2 border-blue-900 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-            Loading verification queue...
-          </div>
-        ) : allQueueItems.length === 0 ? (
-          <div className="p-10 text-center space-y-2">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-1" />
-            <h3 className="text-sm font-semibold text-slate-800">No reports awaiting verification</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              All extracted laboratory results have been verified, or no reports have been uploaded yet.
-            </p>
-            <div className="pt-2">
-              <Link to="/reports" className="clinical-btn-secondary">
-                View Reports Repository
-              </Link>
-            </div>
-          </div>
-        ) : (
+          <LoadingState message="Loading unverified test queue..." rows={5} />
+        ) : results.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+            <table className="clinical-table">
+              <thead>
                 <tr>
-                  <th className="px-3.5 py-2.5">Test</th>
-                  <th className="px-3 py-2.5">Patient</th>
-                  <th className="px-3 py-2.5">Extracted Value</th>
-                  <th className="px-3 py-2.5">Reference Range</th>
-                  <th className="px-3 py-2.5">Status</th>
-                  <th className="px-2.5 py-2.5">Confidence</th>
-                  <th className="px-4 py-2.5 max-w-xs">Source</th>
-                  <th className="px-3.5 py-2.5 text-right">Action</th>
+                  <th>Patient</th>
+                  <th>Document</th>
+                  <th>Test Name</th>
+                  <th>Extracted Value</th>
+                  <th>Reference Range</th>
+                  <th>Confidence</th>
+                  <th>System Status</th>
+                  <th className="text-right">Reviewer Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {allQueueItems.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-3.5 py-3 font-semibold text-slate-900">
-                      <div>{item.test_name}</div>
-                      <div className="text-[10px] text-slate-400 font-normal">
-                        Report: {item.report_title}
-                      </div>
+              <tbody>
+                {results.map((r) => (
+                  <tr key={r.id}>
+                    <td className="font-mono text-[11px] font-semibold text-slate-900 dark:text-white">
+                      {r.patient_identifier || 'PT-RECORD'}
                     </td>
-                    <td className="px-3 py-3 font-mono font-medium text-slate-700">
-                      <Link to={`/patients/${item.patient_id}`} className="hover:underline text-blue-900">
-                        {item.patient_identifier || `PT-${item.patient_id}`}
+                    <td className="text-slate-600 dark:text-slate-300 max-w-[150px] truncate">
+                      <Link to={`/reports/${r.report_id}`} className="hover:underline text-teal-800 dark:text-teal-400">
+                        {r.report_title || `Report #${r.report_id}`}
                       </Link>
                     </td>
-                    <td className="px-3 py-3 font-mono font-semibold text-slate-900">
-                      {item.verified_value ? (
-                        <span title={`Corrected from: ${item.value}`}>
-                          {item.verified_value} {item.unit || ''}*
-                        </span>
-                      ) : (
-                        <span>{item.value} {item.unit || ''}</span>
-                      )}
+                    <td className="font-semibold text-slate-900 dark:text-white">
+                      <div>{r.test_name}</div>
+                      <button
+                        onClick={() => setEvidenceResultId(r.id)}
+                        className="text-[10px] text-slate-400 hover:text-teal-800 dark:hover:text-teal-400 underline font-normal mt-0.5"
+                      >
+                        View Evidence Snippet
+                      </button>
                     </td>
-                    <td className="px-3 py-3 font-mono text-slate-600">
-                      {item.reference_range ? item.reference_range : <em className="text-slate-400">Not provided</em>}
+                    <td className="font-mono font-bold text-slate-900 dark:text-white">
+                      {r.value} {r.unit || ''}
                     </td>
-                    <td className="px-3 py-3">
-                      {renderStatusBadge(item.status)}
+                    <td className="text-slate-600 dark:text-slate-300 font-mono text-[11px]">
+                      {r.reference_range || 'Not provided'}
                     </td>
-                    <td className="px-2.5 py-3 text-slate-500">
-                      {item.confidence_score}%
-                    </td>
-                    <td className="px-4 py-3 max-w-xs">
-                      <span className="font-mono text-[11px] text-slate-700 bg-slate-50 p-1.5 rounded border border-slate-200 block truncate" title={item.source_snippet}>
-                        "{item.source_snippet}"
+                    <td>
+                      <span className="text-[11px] font-mono text-slate-600 dark:text-slate-400">
+                        {r.confidence_score}%
                       </span>
                     </td>
-                    <td className="px-3.5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td>
+                      {getStatusBadge(r.status)}
+                    </td>
+                    <td className="text-right">
+                      <div className="inline-flex items-center gap-1 justify-end">
                         <button
-                          onClick={() => handleAction(item.id, 'accepted')}
+                          onClick={() => handleAction(r.id, 'accepted')}
                           disabled={isSubmitting}
-                          title="Accept (Mark Verified)"
-                          className="clinical-btn-primary py-1 px-2 text-[11px]"
+                          title="Accept verbatim value"
+                          className="px-2 py-1 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-xs font-semibold inline-flex items-center gap-1"
                         >
                           <Check className="w-3 h-3" />
                           <span>Accept</span>
                         </button>
+
                         <button
                           onClick={() => {
-                            setEditingResult(item);
-                            setEditValue(item.verified_value || item.value);
+                            setEditingResult(r);
+                            setEditValue(r.value);
                           }}
                           disabled={isSubmitting}
-                          title="Edit Value"
-                          className="clinical-btn-secondary py-1 px-2 text-[11px]"
+                          title="Correct value"
+                          className="px-2 py-1 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded text-xs font-medium inline-flex items-center gap-1"
                         >
                           <Edit2 className="w-3 h-3" />
                           <span>Edit</span>
                         </button>
+
                         <button
-                          onClick={() => handleAction(item.id, 'marked_uncertain')}
+                          onClick={() => handleAction(r.id, 'marked_uncertain')}
                           disabled={isSubmitting}
-                          title="Mark Uncertain"
-                          className="clinical-btn-secondary py-1 px-2 text-[11px] text-amber-800"
+                          title="Mark uncertain"
+                          className="p-1 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded"
                         >
-                          <HelpCircle className="w-3 h-3" />
-                          <span>Uncertain</span>
+                          <HelpCircle className="w-3.5 h-3.5" />
                         </button>
+
                         <button
-                          onClick={() => handleAction(item.id, 'rejected')}
+                          onClick={() => handleAction(r.id, 'rejected')}
                           disabled={isSubmitting}
-                          title="Reject"
-                          className="clinical-btn-danger py-1 px-2 text-[11px]"
+                          title="Reject result"
+                          className="p-1 bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded"
                         >
-                          <XCircle className="w-3 h-3" />
+                          <XCircle className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -299,45 +241,52 @@ export const VerificationPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+        ) : (
+          <EmptyState
+            icon={CheckCircle2}
+            title="Verification queue is clear"
+            description="All extracted laboratory results have been reviewed and verified. New uploaded documents will appear here automatically."
+            actionLabel="Upload Medical Report"
+            onAction={() => navigate('/reports')}
+          />
         )}
       </div>
 
       {/* Edit Value Modal */}
       {editingResult && (
-        <div className="fixed inset-0 bg-slate-900/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg border border-slate-200 shadow-lg max-w-sm w-full p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <h3 className="text-sm font-semibold text-slate-900">Edit Extracted Value</h3>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 shadow-xl max-w-sm w-full p-5 space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+              <h3 className="text-xs font-semibold text-slate-900 dark:text-white">
+                Edit Value for {editingResult.test_name}
+              </h3>
               <button onClick={() => setEditingResult(null)} className="text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <span className="text-slate-500 block">Test:</span>
-                <span className="font-semibold text-slate-800">{editingResult.test_name}</span>
+            <div className="text-xs space-y-2">
+              <div className="p-2 rounded bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-750">
+                <span className="text-slate-500">Source verbatim: </span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">{editingResult.source_snippet}</span>
               </div>
+
               <div>
-                <span className="text-slate-500 block">Raw Extracted Value:</span>
-                <span className="font-mono text-slate-600">{editingResult.value} {editingResult.unit}</span>
-              </div>
-              <div>
-                <label className="block font-medium text-slate-700 mb-1">Corrected Value:</label>
+                <label className="block text-[11px] font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Corrected Numeric Value
+                </label>
                 <input
                   type="text"
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value)}
                   className="clinical-input w-full"
+                  autoFocus
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setEditingResult(null)}
-                className="clinical-btn-secondary"
-              >
+            <div className="pt-2 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+              <button onClick={() => setEditingResult(null)} className="clinical-btn-secondary">
                 Cancel
               </button>
               <button
@@ -350,6 +299,15 @@ export const VerificationPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Evidence Viewer Modal */}
+      {evidenceResultId !== null && (
+        <EvidenceViewerModal
+          isOpen={true}
+          onClose={() => setEvidenceResultId(null)}
+          resultId={evidenceResultId}
+        />
       )}
 
     </div>
