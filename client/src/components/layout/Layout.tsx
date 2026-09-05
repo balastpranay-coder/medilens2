@@ -11,10 +11,10 @@ export const Layout: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#0b0f19] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-blue-900 border-t-transparent rounded-full animate-spin"></div>
-          <div className="text-xs font-medium text-slate-600">
+          <div className="w-8 h-8 border-2 border-teal-700 border-t-transparent rounded-full animate-spin"></div>
+          <div className="text-xs font-medium text-slate-600 dark:text-slate-400">
             Loading MedLens Clinical Workspace...
           </div>
         </div>
@@ -27,7 +27,7 @@ export const Layout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-900">
+    <div className="min-h-screen flex bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 transition-colors duration-200">
       {/* Left Sidebar (desktop static + mobile drawer) */}
       <Sidebar 
         mobileOpen={mobileSidebarOpen} 

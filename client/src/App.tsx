@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { Layout } from './components/layout/Layout';
 
 // Pages
@@ -23,34 +24,36 @@ import { SearchPage } from './pages/SearchPage';
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <Routes>
-          {/* Public Landing & Authentication */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<AuthPage />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <Routes>
+            {/* Public Landing & Authentication */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<AuthPage />} />
 
-          {/* Protected Clinical Workspace Routes */}
-          <Route element={<Layout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/review-center" element={<ReviewCenterPage />} />
-            <Route path="/patients" element={<PatientsPage />} />
-            <Route path="/patients/new" element={<AddPatientPage />} />
-            <Route path="/patients/:id" element={<PatientProfilePage />} />
-            <Route path="/patients/:id/export" element={<PatientExportPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/reports/:id" element={<ReportDetailsPage />} />
-            <Route path="/comparison" element={<ComparisonPage />} />
-            <Route path="/verification" element={<VerificationPage />} />
-            <Route path="/timeline" element={<TimelinePage />} />
-            <Route path="/ai-summary" element={<AISummaryPage />} />
-            <Route path="/search" element={<SearchPage />} />
-          </Route>
+            {/* Protected Clinical Workspace Routes */}
+            <Route element={<Layout />}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/review-center" element={<ReviewCenterPage />} />
+              <Route path="/patients" element={<PatientsPage />} />
+              <Route path="/patients/new" element={<AddPatientPage />} />
+              <Route path="/patients/:id" element={<PatientProfilePage />} />
+              <Route path="/patients/:id/export" element={<PatientExportPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/reports/:id" element={<ReportDetailsPage />} />
+              <Route path="/comparison" element={<ComparisonPage />} />
+              <Route path="/verification" element={<VerificationPage />} />
+              <Route path="/timeline" element={<TimelinePage />} />
+              <Route path="/ai-summary" element={<AISummaryPage />} />
+              <Route path="/search" element={<SearchPage />} />
+            </Route>
 
-          {/* Catch-all redirect */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </ToastProvider>
-    </AuthProvider>
+            {/* Catch-all redirect */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ToastProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 };
