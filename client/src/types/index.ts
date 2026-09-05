@@ -5,8 +5,6 @@ export interface User {
   role: string;
   photo_url?: string | null;
   phone_number?: string | null;
-  firebase_uid?: string;
-  auth_provider?: 'google' | 'phone' | 'password' | 'firebase';
   created_at?: string;
 }
 
