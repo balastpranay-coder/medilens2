@@ -13,4 +13,8 @@ export default defineConfig({
       },
     },
   },
+  define: {
+    // Injected at build time via Vercel env variable VITE_API_URL
+    // Falls back to relative /api for local dev
+  },
 });

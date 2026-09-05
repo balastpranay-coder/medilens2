@@ -13,9 +13,17 @@ client/build/
 .env.production
 server/.env
 
-# Database (SQLite - contains real patient data)
+# Database (SQLite - contains real patient data, do NOT commit)
+*.db
+*.db-shm
+*.db-wal
+medlens.db
+medlens.db-shm
+medlens.db-wal
 server/medlens.db
-server/*.db
+
+# Uploaded medical reports (patient data, do NOT commit)
+uploads/
 server/uploads/
 
 # Logs
