@@ -8,15 +8,9 @@ import {
   ShieldAlert, 
   Copy, 
   Printer, 
-  ChevronRight, 
-  AlertCircle,
-  Clock,
-  Sparkles,
-  User as UserIcon,
-  CheckCircle2
+  ChevronRight,
+  AlertCircle
 } from 'lucide-react';
-import { LoadingState } from '../components/common/LoadingState';
-import { EmptyState } from '../components/common/EmptyState';
 
 export const AISummaryPage: React.FC = () => {
   const { authFetch } = useAuth();
@@ -90,41 +84,33 @@ export const AISummaryPage: React.FC = () => {
     if (!selectedPatientId) return;
     setIsGenerating(true);
     try {
-      const res = await authFetch('/api/summary/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ patient_id: selectedPatientId })
+      const res = await authFetch(`/api/patients/${selectedPatientId}/summary/generate`, {
+        method: 'POST'
       });
 
       if (res.ok) {
-        success('Clinical summary generated from human-verified patient records.');
+        success('Clinical summary generated from verified patient records.');
         fetchPatientDetails(selectedPatientId);
       } else {
-        const errJson = await res.json().catch(() => ({}));
+        const errJson = await res.json();
         error(errJson.error || 'Failed to generate summary.');
       }
     } catch (err) {
-      error('Server communication error.');
+      error('Network communication error.');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const copyToClipboard = () => {
-    if (!activeSummary) return;
-    navigator.clipboard.writeText(activeSummary.content || activeSummary.summary_content || '');
-    success('Summary copied to clipboard.');
-  };
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1 border-b border-slate-200/80 dark:border-slate-800">
+      {/* Top Header per Section 11 */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Clinical Summary</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Structured patient record summary synthesized strictly from verified laboratory findings and clinical intake
+          <h1 className="text-xl font-semibold text-slate-900">Clinical Summary</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Summary generated from verified patient information and extracted report results.
           </p>
         </div>
 
@@ -137,7 +123,7 @@ export const AISummaryPage: React.FC = () => {
             >
               {patients.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.patient_identifier} ({p.sex}, {p.age ? `${p.age}y` : 'Age N/A'})
+                  {p.patient_identifier} ({p.sex}, {p.age ? `${p.age} yrs` : 'Age N/A'})
                 </option>
               ))}
             </select>
@@ -149,51 +135,59 @@ export const AISummaryPage: React.FC = () => {
             className="clinical-btn-primary"
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>{isGenerating ? 'Synthesizing...' : 'Generate Summary'}</span>
+            <span>{isGenerating ? 'Generating...' : 'Generate Clinical Summary'}</span>
           </button>
         </div>
       </div>
 
       {isLoading ? (
-        <LoadingState message="Loading clinical summary workspace..." rows={5} />
+        <div className="p-10 text-center text-xs text-slate-500">
+          <div className="w-6 h-6 border-2 border-blue-900 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          Loading patient summary data...
+        </div>
       ) : !selectedPatientId ? (
-        <EmptyState
-          icon={UserIcon}
-          title="No patients available"
-          description="Register a patient profile to generate a structured clinical summary."
-          actionLabel="New Patient"
-          actionHref="/patients/new"
-        />
+        <div className="p-10 text-center bg-white border border-slate-200 rounded-lg space-y-2">
+          <h3 className="text-sm font-semibold text-slate-800">No patients available</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            Create a patient profile to generate a structured clinical summary.
+          </p>
+          <div className="pt-2">
+            <Link to="/patients/new" className="clinical-btn-primary">
+              Add Patient
+            </Link>
+          </div>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
           
-          {/* Left Column: Patient Context & History */}
-          <div className="space-y-3">
+          {/* Left Column: Summary Versions & Patient Meta */}
+          <div className="space-y-4">
             
-            {/* Patient Card */}
+            {/* Patient Context Card */}
             {patientData?.patient && (
-              <div className="clinical-card p-3.5 space-y-2 text-xs">
-                <div className="border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">Patient Identifier</span>
-                  <Link to={`/patients/${patientData.patient.id}`} className="font-mono font-bold text-teal-800 dark:text-teal-400 hover:underline text-sm">
+              <div className="bg-white border border-slate-200 rounded-lg p-3.5 space-y-2 text-xs">
+                <div className="border-b border-slate-100 pb-1.5">
+                  <span className="text-[10px] uppercase font-semibold text-slate-400 block">Patient Record</span>
+                  <Link to={`/patients/${patientData.patient.id}`} className="font-mono font-semibold text-blue-900 hover:underline text-sm">
                     {patientData.patient.patient_identifier}
                   </Link>
                 </div>
-                <div className="text-slate-600 dark:text-slate-300 space-y-1 text-[11px]">
+                <div className="text-slate-600 space-y-1 text-[11px]">
                   <div>Age: <strong>{patientData.patient.age !== null ? `${patientData.patient.age} yrs` : 'N/A'}</strong></div>
                   <div>Sex: <strong>{patientData.patient.sex}</strong></div>
-                  <div>Status: <span className="badge-normal text-[10px]">{patientData.patient.status}</span></div>
+                  <div>Verified Results: <strong>{patientData.extracted_count || 0}</strong></div>
+                  <div>Uploaded Reports: <strong>{patientData.report_count || 0}</strong></div>
                 </div>
               </div>
             )}
 
             {/* Version History */}
-            <div className="clinical-card p-3.5 space-y-2">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block">
+            <div className="bg-white border border-slate-200 rounded-lg p-3.5 space-y-2">
+              <span className="text-[10px] uppercase font-semibold text-slate-400 block">
                 Summary Versions ({summaries.length})
               </span>
               {summaries.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">No summary generated yet.</p>
+                <p className="text-xs text-slate-400 italic">No summaries generated.</p>
               ) : (
                 <div className="space-y-1">
                   {summaries.map((s, idx) => (
@@ -202,8 +196,8 @@ export const AISummaryPage: React.FC = () => {
                       onClick={() => setActiveSummary(s)}
                       className={`w-full text-left p-2 rounded text-xs transition-colors flex items-center justify-between ${
                         activeSummary?.id === s.id
-                          ? 'bg-slate-100 dark:bg-slate-800 text-teal-900 dark:text-teal-300 font-semibold border border-teal-800/40 dark:border-teal-500/40'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300'
+                          ? 'bg-blue-50 text-blue-900 font-semibold border border-blue-200'
+                          : 'hover:bg-slate-50 text-slate-700'
                       }`}
                     >
                       <div>
@@ -221,67 +215,73 @@ export const AISummaryPage: React.FC = () => {
 
           </div>
 
-          {/* Right Column: Structured Clinical Summary */}
-          <div className="lg:col-span-3 space-y-3">
+          {/* Right Column: Structured Document View */}
+          <div className="lg:col-span-3 space-y-4">
             {!activeSummary ? (
-              <div className="clinical-card p-8 text-center space-y-3">
-                <FileText className="w-8 h-8 text-slate-400 mx-auto" />
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">No summary generated for this patient</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
-                  Click "Generate Summary" above to synthesize an evidence-grounded clinical summary from verified laboratory data.
+              <div className="p-10 text-center bg-white border border-slate-200 rounded-lg space-y-2">
+                <FileText className="w-8 h-8 text-slate-400 mx-auto mb-1" />
+                <h3 className="text-sm font-semibold text-slate-800">No Summary Generated Yet</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Click "Generate Clinical Summary" to synthesize available verified laboratory results and user profile data.
                 </p>
-                <button
-                  onClick={handleGenerateSummary}
-                  disabled={isGenerating}
-                  className="clinical-btn-primary"
-                >
-                  Generate Clinical Summary
-                </button>
+                <div className="pt-2">
+                  <button
+                    onClick={handleGenerateSummary}
+                    disabled={isGenerating}
+                    className="clinical-btn-primary"
+                  >
+                    Generate Summary Now
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="clinical-card p-5 space-y-4">
+              <div className="bg-white border border-slate-200 rounded-lg p-6 space-y-4">
                 
-                {/* Actions Toolbar */}
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="badge-verified">Verified Records Only</span>
-                    <span className="text-xs text-slate-400 font-mono">
-                      Generated {new Date(activeSummary.generated_at || activeSummary.created_at).toLocaleString()}
-                    </span>
+                {/* Header Actions */}
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="text-xs text-slate-500">
+                    <span>Generated on: <strong>{new Date(activeSummary.generated_at || activeSummary.created_at).toLocaleString()}</strong></span>
+                    {activeSummary.based_on_report_ids && (
+                      <span className="block text-[11px] text-slate-400 mt-0.5">
+                        Contributing Reports: {activeSummary.based_on_report_ids}
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={copyToClipboard}
+                      onClick={() => {
+                        navigator.clipboard.writeText(activeSummary.content);
+                        success('Summary copied to clipboard.');
+                      }}
                       className="clinical-btn-secondary py-1 text-xs"
-                      title="Copy markdown text"
                     >
-                      <Copy className="w-3 h-3" />
+                      <Copy className="w-3.5 h-3.5" />
                       <span>Copy</span>
                     </button>
                     <button
                       onClick={() => window.print()}
                       className="clinical-btn-secondary py-1 text-xs"
-                      title="Print record"
                     >
-                      <Printer className="w-3 h-3" />
+                      <Printer className="w-3.5 h-3.5" />
                       <span>Print</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Markdown Content */}
-                <div className="prose prose-slate dark:prose-invert max-w-none text-xs leading-relaxed font-sans space-y-3">
-                  <pre className="whitespace-pre-wrap font-sans text-slate-800 dark:text-slate-200 bg-transparent p-0 m-0 border-0">
-                    {activeSummary.content || activeSummary.summary_content}
-                  </pre>
+                {/* Structured Document Content */}
+                <div className="whitespace-pre-wrap font-sans text-slate-800 text-xs sm:text-sm leading-relaxed space-y-3 py-1">
+                  {activeSummary.content}
                 </div>
 
-                {/* Mandatory Clinical Safety Notice */}
-                <div className="p-3 rounded bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-xs text-amber-950 dark:text-amber-200 flex items-start gap-2">
-                  <ShieldAlert className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
-                  <div className="text-[11px] leading-relaxed">
-                    <strong>Notice:</strong> This summary organizes available medical information for clinical review. It is strictly non-diagnostic and must not replace clinical judgement or autonomous medical decisions.
+                {/* Mandatory Clinical Disclaimer Banner at the bottom per Section 10 & 11 */}
+                <div className="mt-4 p-3 bg-amber-50/80 border border-amber-200 rounded text-xs text-amber-950 flex items-start gap-2">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-amber-950">Important Notice:</span>
+                    <p className="mt-0.5 text-amber-900 leading-relaxed">
+                      This summary organizes the available information for review and is not a medical diagnosis or treatment recommendation.
+                    </p>
                   </div>
                 </div>
 
