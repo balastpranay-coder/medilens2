@@ -3,82 +3,85 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --primary-teal: #0d9488;
+    --primary-teal-hover: #0f766e;
+    --mint-bg: #f0fdf4;
+    --mint-border: #bbf7d0;
+    --mint-text: #166534;
+  }
+
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-[#f8fafc] text-slate-900 antialiased selection:bg-teal-500 selection:text-white;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  /* Compact headings and text */
   h1 {
-    @apply text-2xl font-semibold text-slate-900 tracking-tight;
+    @apply text-2xl font-bold text-slate-900 tracking-tight;
   }
   h2 {
-    @apply text-lg font-semibold text-slate-900 tracking-tight;
+    @apply text-lg font-bold text-slate-900 tracking-tight;
   }
   h3 {
-    @apply text-base font-medium text-slate-900;
+    @apply text-base font-semibold text-slate-900;
   }
 }
 
-/* Restrained Clinical Design Utilities */
+/* Modern Clinical Card & UI Utilities */
 .clinical-card {
-  @apply bg-white border border-slate-200 rounded-lg shadow-sm;
+  @apply bg-white border border-slate-200 rounded-2xl shadow-sm transition-all;
+}
+
+.clinical-card-hover {
+  @apply bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md hover:border-teal-200 transition-all;
 }
 
 .clinical-input {
-  @apply bg-white border border-slate-300 text-slate-900 text-sm rounded-md px-3 py-2 outline-none transition-colors focus:border-blue-900 focus:ring-1 focus:ring-blue-900;
+  @apply bg-white border border-slate-200 text-slate-900 text-xs rounded-xl px-3.5 py-2 outline-none transition-colors focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20 placeholder:text-slate-400;
 }
 
 .clinical-btn-primary {
-  @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-md bg-blue-900 hover:bg-blue-800 text-white text-xs font-semibold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 active:bg-teal-900 text-white text-xs font-semibold shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
 .clinical-btn-secondary {
-  @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-md bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-medium shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
-.clinical-btn-danger {
-  @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-medium transition-colors;
+.clinical-btn-mint {
+  @apply inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition-all;
 }
 
-/* Subtle Status Badges */
+/* Status Badges */
 .badge-normal {
-  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200;
+  @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200;
 }
 
 .badge-low {
-  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200;
+  @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-900 border border-amber-200;
 }
 
 .badge-high {
-  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200;
+  @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200;
 }
 
 .badge-unknown {
-  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200;
+  @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200;
 }
 
-.badge-source-user {
-  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-800 border border-blue-200;
-}
-
-.badge-source-report {
-  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200;
-}
-
-/* Clean minimal scrollbar */
+/* Scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f8fafc;
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {

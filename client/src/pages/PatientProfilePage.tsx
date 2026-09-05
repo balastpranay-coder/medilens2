@@ -480,7 +480,7 @@ export const PatientProfilePage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-xs">
+      <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="w-8 h-8 border-3 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
         <p className="text-xs font-semibold text-slate-600">Loading comprehensive patient record...</p>
       </div>
@@ -489,7 +489,7 @@ export const PatientProfilePage: React.FC = () => {
 
   if (!patient) {
     return (
-      <div className="p-12 text-center max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-xs mt-8">
+      <div className="p-12 text-center max-w-md mx-auto bg-white rounded-2xl border border-slate-200 shadow-sm mt-8">
         <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto mb-3" />
         <h2 className="text-base font-bold text-slate-900 mb-1">Patient Not Found</h2>
         <p className="text-xs text-slate-500 mb-4">The requested patient record could not be found or has been deleted.</p>
@@ -1005,13 +1005,13 @@ export const PatientProfilePage: React.FC = () => {
           </div>
 
           {extractedResults.length === 0 ? (
-            <div className="p-12 text-center bg-white border border-slate-200 rounded-2xl shadow-xs">
+            <div className="p-12 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
               <FileCheck2 className="w-10 h-10 text-slate-300 mx-auto mb-3" />
               <h3 className="text-sm font-bold text-slate-800">No Structured Results Extracted</h3>
               <p className="text-xs text-slate-500 mt-1">Upload a medical report to extract structured laboratory data.</p>
             </div>
           ) : (
-            <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
@@ -1502,7 +1502,7 @@ export const PatientProfilePage: React.FC = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-900">Authentic Patient Lifecycle History</h2>
-            <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-xs shadow-xs">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-xs shadow-sm">
               <Filter className="w-3.5 h-3.5 text-slate-400" />
               <select
                 value={timelineFilter}

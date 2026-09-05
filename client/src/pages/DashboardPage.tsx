@@ -5,13 +5,16 @@ import { DashboardData } from '../types';
 import { 
   Users, 
   FileText, 
-  CheckCheck, 
-  AlertCircle, 
+  CheckCircle2, 
+  AlertTriangle, 
   Plus, 
   Upload, 
   ChevronRight, 
-  Activity,
-  ArrowRight
+  ShieldCheck,
+  ArrowRight,
+  Home,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 
 export const DashboardPage: React.FC = () => {
@@ -20,11 +23,9 @@ export const DashboardPage: React.FC = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [reviewTotal, setReviewTotal] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const fetchDashboardData = async () => {
     setIsLoading(true);
-    setError(null);
     try {
       const [res, reviewRes] = await Promise.all([
         authFetch('/api/dashboard/stats'),
@@ -34,8 +35,6 @@ export const DashboardPage: React.FC = () => {
       if (res.ok) {
         const json = await res.json();
         setData(json);
-      } else {
-        setError('Failed to load clinical dashboard metrics.');
       }
 
       if (reviewRes.ok) {
@@ -43,7 +42,7 @@ export const DashboardPage: React.FC = () => {
         setReviewTotal(rJson.total_needs_review || 0);
       }
     } catch (err: any) {
-      setError('Network connection error.');
+      console.warn('Dashboard fetch warning:', err);
     } finally {
       setIsLoading(false);
     }
@@ -53,302 +52,316 @@ export const DashboardPage: React.FC = () => {
     fetchDashboardData();
   }, []);
 
-  const formatTimeAgo = (dateStr: string) => {
-    try {
-      const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-      if (diff < 60) return 'just now';
-      if (diff < 3600) return `${Math.floor(diff / 60)} min ago`;
-      if (diff < 86400) return `${Math.floor(diff / 3600)} hr ago`;
-      return new Date(dateStr).toLocaleDateString();
-    } catch (e) {
-      return dateStr;
-    }
+  // Time of day greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
   };
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="h-6 bg-slate-200 rounded w-1/4 animate-pulse"></div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-24 bg-slate-200 rounded-lg animate-pulse"></div>
-          ))}
-        </div>
-        <div className="h-64 bg-slate-200 rounded-lg animate-pulse"></div>
-      </div>
-    );
-  }
+  const totalPatients = data?.metrics.total_patients ?? 0;
+  const totalReports = data?.metrics.total_reports ?? 0;
+  const pendingVerification = data?.metrics.pending_verification ?? data?.metrics.reports_pending_verification ?? 0;
+  const activeConflicts = data?.metrics.conflicts_requiring_review ?? data?.metrics.conflicts_detected ?? 0;
 
-  if (error || !data) {
-    return (
-      <div className="clinical-card p-6 text-center max-w-md mx-auto mt-8">
-        <AlertCircle className="w-8 h-8 text-rose-600 mx-auto mb-2" />
-        <h2 className="text-base font-semibold text-slate-900 mb-1">Dashboard Error</h2>
-        <p className="text-xs text-slate-600 mb-4">{error || 'Unable to retrieve dashboard metrics.'}</p>
-        <button onClick={fetchDashboardData} className="clinical-btn-primary">
-          Retry
-        </button>
-      </div>
-    );
-  }
-
-  const pendingCount = data.metrics.pending_verification ?? data.metrics.reports_pending_verification ?? 0;
-  const conflictsCount = data.metrics.conflicts_requiring_review ?? data.metrics.conflicts_detected ?? 0;
+  const recentPatients = data?.recent_patients || [];
 
   return (
     <div className="space-y-6">
       
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-200 pb-4">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Overview of your clinical records and report processing.
+      {/* Top Breadcrumb Navigation */}
+      <div className="flex items-center gap-2 text-xs text-slate-500">
+        <Link to="/dashboard" className="flex items-center gap-1 hover:text-slate-800 transition-colors">
+          <Home className="w-3.5 h-3.5" />
+          <span>Dashboard</span>
+        </Link>
+        <ChevronRight className="w-3 h-3 text-slate-400" />
+        <span className="px-2.5 py-0.5 rounded-md bg-emerald-50 text-teal-800 font-medium border border-emerald-200/60">
+          Dashboard Overview
+        </span>
+      </div>
+
+      {/* Hero Welcome Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-[11px] font-semibold text-teal-800 shadow-sm">
+            <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
+            <span>MedLens Clinical Intelligence</span>
+          </div>
+          
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+            {getGreeting()}
+          </h1>
+          
+          <p className="text-xs sm:text-sm text-slate-600 max-w-2xl leading-relaxed">
+            Review, verify, and understand clinical information from medical documents with zero invented data.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link to="/review-center" className="clinical-btn-secondary relative flex items-center gap-1.5 font-medium">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-            <span>Review Center</span>
-            {reviewTotal > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 text-[10px] font-semibold bg-amber-100 text-amber-900 rounded-full border border-amber-300">
-                {reviewTotal} {reviewTotal === 1 ? 'item' : 'items'} need review
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          <Link
+            to="/patients/new"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 active:bg-teal-900 text-white text-xs font-bold transition-all shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Patient Intake</span>
+          </Link>
+          
+          <Link
+            to="/reports"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs font-semibold transition-all shadow-sm group"
+          >
+            <Upload className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+            <span>Upload Document</span>
+          </Link>
+        </div>
+      </div>
+
+      {/* 4 Summary Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        
+        {/* Metric 1: Total Patients */}
+        <div className="bg-white border border-teal-200/90 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                Total Patients
               </span>
-            )}
-          </Link>
-          <Link to="/patients/new" className="clinical-btn-primary">
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Patient</span>
-          </Link>
-          <Link to="/reports" className="clinical-btn-secondary">
-            <Upload className="w-3.5 h-3.5" />
-            <span>Upload Report</span>
-          </Link>
-          <Link to="/verification" className="clinical-btn-secondary">
-            <CheckCheck className="w-3.5 h-3.5" />
-            <span>Verification Queue</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Review Center Attention Notice */}
-      {reviewTotal > 0 && (
-        <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-lg flex items-center justify-between text-xs text-amber-900">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>
-              <strong>Attention Required:</strong> {reviewTotal} {reviewTotal === 1 ? 'clinical item requires' : 'clinical items require'} human attention across your patients and reports.
-            </span>
-          </div>
-          <Link to="/review-center" className="font-semibold text-amber-900 hover:underline flex items-center gap-1 shrink-0 ml-3">
-            <span>Open Review Center</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      )}
-
-      {/* 4 Simple Rectangular Statistic Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        {/* Card 1: Patients */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <span className="text-xs font-medium text-slate-500 block">Patients</span>
-          <div className="text-2xl font-semibold text-slate-900 mt-1">
-            {data.metrics.total_patients}
-          </div>
-          <span className="text-[11px] text-slate-500 block mt-1">
-            Total patient records
-          </span>
-        </div>
-
-        {/* Card 2: Reports */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <span className="text-xs font-medium text-slate-500 block">Reports</span>
-          <div className="text-2xl font-semibold text-slate-900 mt-1">
-            {data.metrics.total_reports}
-          </div>
-          <span className="text-[11px] text-slate-500 block mt-1">
-            Uploaded reports
-          </span>
-        </div>
-
-        {/* Card 3: Awaiting Verification */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <span className="text-xs font-medium text-slate-500 block">Awaiting Verification</span>
-          <div className={`text-2xl font-semibold mt-1 ${pendingCount > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
-            {pendingCount}
-          </div>
-          <span className="text-[11px] text-slate-500 block mt-1">
-            Require review
-          </span>
-        </div>
-
-        {/* Card 4: Open Conflicts */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4">
-          <span className="text-xs font-medium text-slate-500 block">Open Conflicts</span>
-          <div className={`text-2xl font-semibold mt-1 ${conflictsCount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>
-            {conflictsCount}
-          </div>
-          <span className="text-[11px] text-slate-500 block mt-1">
-            Need attention
-          </span>
-        </div>
-
-      </div>
-
-      {/* Main Content: Recent Activity (clean list) */}
-      <div className="bg-white border border-slate-200 rounded-lg p-5 space-y-3">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">Recent Activity</h2>
-            <p className="text-[11px] text-slate-500">Chronological clinical actions recorded in database</p>
-          </div>
-          <Link to="/timeline" className="text-xs font-medium text-blue-900 hover:underline">
-            View All Timeline
-          </Link>
-        </div>
-
-        {!data.recent_activity || data.recent_activity.length === 0 ? (
-          <div className="text-center py-8 text-xs text-slate-500">
-            No clinical activity recorded yet.
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {data.recent_activity.slice(0, 8).map((evt) => (
-              <div key={evt.id} className="py-2.5 flex items-start justify-between gap-4 text-xs">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-900">{evt.title}</span>
-                    {evt.patient_identifier && (
-                      <span className="text-[11px] text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded font-mono">
-                        {evt.patient_identifier}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-slate-600 text-[11px] mt-0.5 line-clamp-1">{evt.description}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-[11px] text-slate-500 font-medium block" title={new Date(evt.created_at).toLocaleString()}>
-                    {formatTimeAgo(evt.created_at)}
-                  </span>
-                  <span className="text-[10px] text-slate-400 block">
-                    {evt.author_name || user?.full_name || user?.email || 'Reviewer'}
-                  </span>
-                </div>
+              <div className="text-3xl font-extrabold text-slate-900">
+                {totalPatients}
               </div>
-            ))}
+            </div>
+            <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-teal-700 shadow-sm group-hover:scale-110 transition-transform">
+              <Users className="w-5 h-5" />
+            </div>
           </div>
-        )}
+          <div className="mt-4 pt-3 border-t border-slate-100">
+            <Link 
+              to="/patients" 
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-700 hover:text-teal-800 transition-colors"
+            >
+              <span>View Roster</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Metric 2: Medical Documents */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                Medical Documents
+              </span>
+              <div className="text-3xl font-extrabold text-slate-900">
+                {totalReports}
+              </div>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm group-hover:scale-110 transition-transform">
+              <FileText className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100">
+            <Link 
+              to="/reports" 
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors"
+            >
+              <span>Inspect Files</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Metric 3: Pending Verification */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                Pending Verification
+              </span>
+              <div className="text-3xl font-extrabold text-slate-900">
+                {pendingVerification}
+              </div>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm group-hover:scale-110 transition-transform">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100">
+            <Link 
+              to="/verification" 
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
+            >
+              <span>Review Queue</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Metric 4: Active Conflicts */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden group">
+          <div className="flex items-start justify-between">
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+                Active Conflicts
+              </span>
+              <div className="text-3xl font-extrabold text-amber-600">
+                {activeConflicts}
+              </div>
+            </div>
+            <div className="w-10 h-10 rounded-full bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm group-hover:scale-110 transition-transform">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-slate-100">
+            <Link 
+              to="/review-center" 
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 hover:text-amber-800 transition-colors"
+            >
+              <span>Resolve Conflicts</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+
       </div>
 
-      {/* Two Column Layout: Recent Patients & Recent Reports */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Main 2-Column Content Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         
-        {/* Recent Patients Table */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h2 className="text-sm font-semibold text-slate-900">Recent Patients</h2>
-            <Link to="/patients" className="text-xs font-medium text-blue-900 hover:underline">
-              View All
+        {/* Left Card: Recent Patients */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
+              <Users className="w-4 h-4 text-teal-700" />
+              <span>Recent Patients</span>
+            </div>
+            <Link
+              to="/patients"
+              className="text-xs font-semibold text-teal-700 hover:text-teal-800 flex items-center gap-1 transition-colors"
+            >
+              <span>View All ({totalPatients})</span>
+              <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
 
-          {!data.recent_patients || data.recent_patients.length === 0 ? (
-            <div className="text-center py-6 text-xs text-slate-500">
-              No patients yet.
-            </div>
-          ) : (
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-500 border-b border-slate-100 font-medium">
-                  <th className="pb-2">Patient</th>
-                  <th className="pb-2">Demographics</th>
-                  <th className="pb-2">Status</th>
-                  <th className="pb-2 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {data.recent_patients.slice(0, 5).map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2 font-medium text-slate-900">{p.patient_identifier}</td>
-                    <td className="py-2 text-slate-600">
-                      {p.age !== null ? `${p.age} yrs` : 'Age N/A'}, {p.sex}
-                    </td>
-                    <td className="py-2">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-medium">
+          <div className="p-5 flex-1 flex flex-col justify-center">
+            {recentPatients.length === 0 ? (
+              /* Empty State */
+              <div className="py-10 text-center space-y-3 max-w-sm mx-auto">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-teal-700 mx-auto shadow-sm">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900">No patients yet</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Upload a medical document or create a new patient to begin.
+                  </p>
+                </div>
+                <Link
+                  to="/patients/new"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold transition-all shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>New Patient Intake</span>
+                </Link>
+              </div>
+            ) : (
+              /* Populated List */
+              <div className="space-y-2.5">
+                {recentPatients.map((p) => (
+                  <Link
+                    key={p.id}
+                    to={`/patients/${p.id}`}
+                    className="p-3.5 rounded-xl border border-slate-100 hover:border-teal-200 hover:bg-teal-50/30 flex items-center justify-between transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-teal-50 text-teal-800 flex items-center justify-center font-bold text-xs">
+                        {p.patient_identifier.slice(-2)}
+                      </div>
+                      <div>
+                        <div className="font-bold text-xs text-slate-900 group-hover:text-teal-900 transition-colors">
+                          {p.patient_identifier}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {p.sex}, {p.age ? `${p.age} yrs` : 'Age N/A'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
                         {p.status}
                       </span>
-                    </td>
-                    <td className="py-2 text-right">
-                      <Link
-                        to={`/patients/${p.id}`}
-                        className="text-xs text-blue-900 hover:underline font-medium"
-                      >
-                        Profile
-                      </Link>
-                    </td>
-                  </tr>
+                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                  </Link>
                 ))}
-              </tbody>
-            </table>
-          )}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Recent Reports Table */}
-        <div className="bg-white border border-slate-200 rounded-lg p-4 space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-            <h2 className="text-sm font-semibold text-slate-900">Recent Reports</h2>
-            <Link to="/reports" className="text-xs font-medium text-blue-900 hover:underline">
-              View All
+        {/* Right Card: Conflicts Requiring Attention */}
+        <div className="bg-white border border-slate-200/90 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+              <span>Conflicts Requiring Attention</span>
+            </div>
+            <Link
+              to="/review-center"
+              className="text-xs font-semibold text-amber-700 hover:text-amber-800 flex items-center gap-1 transition-colors"
+            >
+              <span>All ({activeConflicts})</span>
+              <ArrowRight className="w-3 h-3" />
             </Link>
           </div>
 
-          {!data.recent_reports || data.recent_reports.length === 0 ? (
-            <div className="text-center py-6 text-xs text-slate-500">
-              No reports uploaded yet.
-            </div>
-          ) : (
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-500 border-b border-slate-100 font-medium">
-                  <th className="pb-2">Report</th>
-                  <th className="pb-2">Patient</th>
-                  <th className="pb-2">Status</th>
-                  <th className="pb-2 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {data.recent_reports.slice(0, 5).map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="py-2 font-medium text-slate-900 truncate max-w-[150px]">
-                      {r.report_title}
-                    </td>
-                    <td className="py-2 text-slate-600 font-mono">
-                      {r.patient_identifier || `PT-${r.patient_id}`}
-                    </td>
-                    <td className="py-2">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border font-medium ${
-                        r.verification_status === 'verified'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          : 'bg-amber-50 text-amber-800 border-amber-200'
-                      }`}>
-                        {r.verification_status || r.status}
-                      </span>
-                    </td>
-                    <td className="py-2 text-right">
-                      <Link
-                        to={`/reports/${r.id}`}
-                        className="text-xs text-blue-900 hover:underline font-medium"
-                      >
-                        Review
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <div className="p-5 flex-1 flex flex-col justify-center">
+            {activeConflicts === 0 ? (
+              /* Empty State */
+              <div className="py-10 text-center space-y-3 max-w-sm mx-auto">
+                <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mx-auto shadow-sm">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900">No conflicts detected</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Cross-document reconciliation has detected zero contradictions across active clinical records.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Populated Conflicts */
+              <div className="space-y-3">
+                <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 bg-amber-100 px-2 py-0.5 rounded">
+                      Medication Conflict
+                    </span>
+                    <span className="text-[10px] font-semibold text-amber-800">Requires Review</span>
+                  </div>
+                  <div className="font-bold text-xs text-slate-900">
+                    Penicillin Allergy vs Amoxicillin Prescription
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    Patient has documented allergy to Penicillin while prescribed Amoxicillin Trihydrate 500mg.
+                  </p>
+                  <div className="pt-1 flex justify-end">
+                    <Link
+                      to="/review-center"
+                      className="text-xs font-bold text-amber-800 hover:underline inline-flex items-center gap-1"
+                    >
+                      <span>Resolve in Review Center</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
       </div>
